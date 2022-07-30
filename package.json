@@ -1,0 +1,38 @@
+{
+  "name": "fork-sushibar",
+  "version": "1.0.0",
+  "description": "The repo contains modified implementation of sushiswap's sushibar contract",
+  "repository": "https://github.com/rodriguesnavil/fork-sushibar.git",
+  "author": "Navil",
+  "license": "MIT",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "lint": "solhint 'contracts/*.sol'",
+    "lint:fix": "solhint 'contracts/**/*.sol' --fix",
+    "format": "prettier --write .",
+    "coverage": "hardhat coverage --solcoverjs ./.solcover.js",
+    "fuzzing": "docker run -it --rm -v $PWD:/src trailofbits/eth-security-toolbox",
+    "slither": "slither ./contracts/ --solc-remaps '@openzeppelin/contracts=./node_modules/@openzeppelin/contracts @chainlink/contracts=./node_modules/@chainlink/contracts' --exclude naming-convention"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers",
+    "@nomiclabs/hardhat-etherscan": "^3.1.0",
+    "@nomiclabs/hardhat-waffle": "^2.0.3",
+    "@openzeppelin/contracts": "^4.7.0",
+    "@sushiswap/core-sdk": "1.0.0-canary.77",
+    "@uniswap/v2-core": "git://github.com/uniswap/uniswap-v2-core.git#27f6354bae6685612c182c3bc7577e61bc8717e3",
+    "chai": "^4.3.6",
+    "dotenv": "^16.0.1",
+    "ethereum-waffle": "^3.4.4",
+    "ethers": "^5.6.9",
+    "hardhat": "^2.9.9",
+    "hardhat-contract-sizer": "^2.6.1",
+    "hardhat-deploy": "^0.11.11",
+    "hardhat-gas-reporter": "^1.0.8",
+    "prettier": "^2.7.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.19",
+    "solhint": "^3.3.7",
+    "solidity-coverage": "^0.7.21"
+  }
+}
