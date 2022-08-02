@@ -15,52 +15,171 @@ describe("SushiBar", function () {
         await deployments.fixture(["SushiBar"])
         sushi = await ethers.getContract("SushiToken")
         bar = await ethers.getContract("SushiBar")
-
-        sushi.mint(alice.address, "100")
-        sushi.mint(bob.address, "100")
-        sushi.mint(carol.address, "100")
+        let amount = ethers.utils.parseEther("100")
+        sushi.mint(alice.address, amount)
+        sushi.mint(bob.address, amount)
+        sushi.mint(carol.address, amount)
     })
 
     it("should not allow enter if not enough approve", async function () {
-        await expect(bar.enter("100")).to.be.revertedWith(
+        let amount = ethers.utils.parseEther("100")
+        await expect(bar.enter(amount)).to.be.revertedWith(
             "ERC20: transfer amount exceeds allowance"
         )
-        await sushi.approve(bar.address, "50")
-        await expect(bar.enter("100")).to.be.revertedWith(
+        await sushi.approve(bar.address, ethers.utils.parseEther("50"))
+        await expect(bar.enter(amount)).to.be.revertedWith(
             "ERC20: transfer amount exceeds allowance"
         )
-        await sushi.approve(bar.address, "100")
-        await bar.enter("100")
-        expect(await bar.balanceOf(alice.address)).to.equal("100")
+        await sushi.approve(bar.address, amount)
+        await bar.enter(amount)
+        expect(await bar.balanceOf(alice.address)).to.equal(amount)
     })
 
-    it("should not allow withraw more than what you have", async function () {
-        await sushi.approve(bar.address, "100")
-        await bar.enter("100")
-        await expect(bar.leave("200")).to.be.revertedWith("ERC20: burn amount exceeds balance")
+    it("should not be able to unstake", async function () {
+        let amount = ethers.utils.parseEther("100")
+        await sushi.approve(bar.address, amount)
+        await bar.enter(amount)
+        expect(await bar.balanceOf(alice.address)).to.equal(amount)
+
+        await expect(bar.leave(100)).to.be.revertedWith("Unable to unstake at this time")
     })
 
-    it("should work with more than one participant", async function () {
-        await sushi.approve(bar.address, "100")
-        await sushi.connect(bob).approve(bar.address, "100", { from: bob.address })
-        // Alice enters and gets 20 shares. Bob enters and gets 10 shares.
-        await bar.enter("20")
-        await bar.connect(bob).enter("10", { from: bob.address })
-        expect(await bar.balanceOf(alice.address)).to.equal("20")
-        expect(await bar.balanceOf(bob.address)).to.equal("10")
-        expect(await sushi.balanceOf(bar.address)).to.equal("30")
-        // SushiBar get 20 more SUSHIs from an external source.
-        await sushi.connect(carol).transfer(bar.address, "20", { from: carol.address })
-        // Alice deposits 10 more SUSHIs. She should receive 10*30/50 = 6 shares.
-        await bar.enter("10")
-        expect(await bar.balanceOf(alice.address)).to.equal("26")
-        expect(await bar.balanceOf(bob.address)).to.equal("10")
-        // Bob withdraws 5 shares. He should receive 5*60/36 = 8 shares
-        await bar.connect(bob).leave("5", { from: bob.address })
-        expect(await bar.balanceOf(alice.address)).to.equal("26")
-        expect(await bar.balanceOf(bob.address)).to.equal("5")
-        expect(await sushi.balanceOf(bar.address)).to.equal("52")
-        expect(await sushi.balanceOf(alice.address)).to.equal("70")
-        expect(await sushi.balanceOf(bob.address)).to.equal("98")
+    it("should be able to unstake 25% + pay 75% tax to reward pool", async function () {
+        let amount = ethers.utils.parseEther("100")
+        await sushi.approve(bar.address, amount)
+        await bar.enter(amount)
+        expect(await bar.balanceOf(alice.address)).to.equal(amount)
+
+        const twoDays = 2 * 24 * 60 * 60
+        await network.provider.send("evm_increaseTime", [twoDays + 1])
+        await network.provider.request({ method: "evm_mine", params: [] })
+
+        let amountToUnstake = ethers.utils.parseEther("25")
+        let initialBarBalance = await sushi.balanceOf(bar.address)
+        await bar.leave(amountToUnstake)
+        let finalAmount = amountToUnstake.sub(amountToUnstake.mul(75).div(100))
+
+        // check alice balance
+        expect(await sushi.balanceOf(alice.address)).to.equal(finalAmount)
+        // check bar contract balance
+        expect(await sushi.balanceOf(bar.address)).to.equal(initialBarBalance.sub(finalAmount))
+    })
+
+    it("should revert when user is unstaking more than 25%", async function () {
+        let amount = ethers.utils.parseEther("100")
+        await sushi.approve(bar.address, amount)
+        await bar.enter(amount)
+        expect(await bar.balanceOf(alice.address)).to.equal(amount)
+
+        const twoDays = 2 * 24 * 60 * 60
+        await network.provider.send("evm_increaseTime", [twoDays + 1])
+        await network.provider.request({ method: "evm_mine", params: [] })
+
+        let amountToUnstake = ethers.utils.parseEther("30")
+
+        await expect(bar.leave(amountToUnstake)).to.be.revertedWith(
+            "Unable to unstake at this time"
+        )
+    })
+
+    it("should be able to unstake 50% + pay 50% tax to reward pool", async function () {
+        let amount = ethers.utils.parseEther("100")
+        await sushi.approve(bar.address, amount)
+        await bar.enter(amount)
+        expect(await bar.balanceOf(alice.address)).to.equal(amount)
+
+        const fourDays = 4 * 24 * 60 * 60
+        await network.provider.send("evm_increaseTime", [fourDays + 1])
+        await network.provider.request({ method: "evm_mine", params: [] })
+
+        let amountToUnstake = ethers.utils.parseEther("50")
+        let initialBarBalance = await sushi.balanceOf(bar.address)
+
+        await bar.leave(amountToUnstake)
+        let finalAmount = amountToUnstake.sub(amountToUnstake.mul(50).div(100))
+        // check alice balance
+        expect(await sushi.balanceOf(alice.address)).to.equal(finalAmount)
+        // check bar contract balance
+        expect(await sushi.balanceOf(bar.address)).to.equal(initialBarBalance.sub(finalAmount))
+    })
+
+    it("should revert when user is unstaking more than 50%", async function () {
+        let amount = ethers.utils.parseEther("100")
+        await sushi.approve(bar.address, amount)
+        await bar.enter(amount)
+        expect(await bar.balanceOf(alice.address)).to.equal(amount)
+
+        const fourDays = 4 * 24 * 60 * 60
+        await network.provider.send("evm_increaseTime", [fourDays + 1])
+        await network.provider.request({ method: "evm_mine", params: [] })
+
+        let amountToUnstake = ethers.utils.parseEther("60")
+
+        await expect(bar.leave(amountToUnstake)).to.be.revertedWith(
+            "Unable to unstake at this time"
+        )
+    })
+
+    it("should be able to unstake 75% + pay 25% tax to reward pool", async function () {
+        let amount = ethers.utils.parseEther("100")
+        await sushi.approve(bar.address, amount)
+        await bar.enter(amount)
+        expect(await bar.balanceOf(alice.address)).to.equal(amount)
+
+        const sixDays = 6 * 24 * 60 * 60
+        await network.provider.send("evm_increaseTime", [sixDays + 1])
+        await network.provider.request({ method: "evm_mine", params: [] })
+
+        let amountToUnstake = ethers.utils.parseEther("75")
+        let initialBarBalance = await sushi.balanceOf(bar.address)
+
+        await bar.leave(amountToUnstake)
+        let finalAmount = amountToUnstake.sub(amountToUnstake.mul(25).div(100))
+        let aliceBal = await sushi.balanceOf(alice.address)
+
+        // check alice balance
+        expect(await sushi.balanceOf(alice.address)).to.equal(finalAmount)
+        // check bar contract balance
+        expect(await sushi.balanceOf(bar.address)).to.equal(initialBarBalance.sub(finalAmount))
+    })
+
+    it("should revert when user is unstaking more than 75%", async function () {
+        let amount = ethers.utils.parseEther("100")
+        await sushi.approve(bar.address, amount)
+        await bar.enter(amount)
+        expect(await bar.balanceOf(alice.address)).to.equal(amount)
+
+        const sixDays = 6 * 24 * 60 * 60
+        await network.provider.send("evm_increaseTime", [sixDays + 1])
+        await network.provider.request({ method: "evm_mine", params: [] })
+
+        let amountToUnstake = ethers.utils.parseEther("85")
+
+        await expect(bar.leave(amountToUnstake)).to.be.revertedWith(
+            "Unable to unstake at this time"
+        )
+    })
+
+    it("should be able to unstake 100% + pay 0% tax to reward pool", async function () {
+        let amount = ethers.utils.parseEther("100")
+        await sushi.approve(bar.address, amount)
+        await bar.enter(amount)
+        expect(await bar.balanceOf(alice.address)).to.equal(amount)
+
+        const eightDays = 8 * 24 * 60 * 60
+        await network.provider.send("evm_increaseTime", [eightDays + 1])
+        await network.provider.request({ method: "evm_mine", params: [] })
+
+        let amountToUnstake = ethers.utils.parseEther("100")
+        let initialBarBalance = await sushi.balanceOf(bar.address)
+
+        await bar.leave(amountToUnstake)
+        let finalAmount = amountToUnstake
+        let aliceBal = await sushi.balanceOf(alice.address)
+
+        // check alice balance
+        expect(await sushi.balanceOf(alice.address)).to.equal(finalAmount)
+        // check bar contract balance
+        expect(await sushi.balanceOf(bar.address)).to.equal(initialBarBalance.sub(finalAmount))
     })
 })
