@@ -55,7 +55,7 @@ I have written two separate internal functions
 
 - ```_tax(uint256)```: it will take calculated unlocked amount from the previous function and will calculate the total tax that will be applicable
 
-After the calculations, two transfer operations are performed one for reward pool and the other one for user.
+After the calculations, the amount(post tax) will be sent to the recipient
 
 ## Test case output screen
 ![SushiBarStaking](docs/test-cases.png)

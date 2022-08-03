@@ -62,9 +62,10 @@ contract SushiBar is ERC20("SushiBar", "xSUSHI") {
         require(what > 0 && what <= unlock, "Unable to unstake at this time");
         // Now calculate the tax on your tokens
         uint256 tax = _tax(what);
-        // Send the tax to the reward fund
-        sushi.transfer(address(this), tax);
-        // calculate the final amount and sent to the user
+        // Send the tax to the reward fund, we will treat out contract address as reward pool
+        // sushi.transfer(address(this), tax);
+
+        // calculate the final amount and sent to the recipient
         uint256 finalAmount = unlock.sub(tax);
         // unlock the Sushi in the contract
         sushi.transfer(msg.sender, finalAmount);
