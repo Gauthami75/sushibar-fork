@@ -56,30 +56,29 @@ contract SushiBar is ERC20("SushiBar", "xSUSHI") {
         uint256 totalShares = totalSupply();
         // Calculates the amount of Sushi the xSushi is worth
         uint256 what = _share.mul(sushi.balanceOf(address(this))).div(totalShares);
-        // check how much user can unlock based on the day they left the bar
-        uint256 unlock = _unlock(userStake[msg.sender].amount);
-        // check if unlock is greater than 0
-        require(what > 0 && what <= unlock, "Unable to unstake at this time");
-        // Now calculate the tax on your tokens
+        // The amount of stake that can be unlocked is calculated based on the days left.
+        uint256 stakeUnlocked = _timelock(userStake[msg.sender].amount);
+        
+        require(what > 0 && what <= stakeUnlocked, "Unable to unstake at this time");
+        // Tax calculated based on the days.
         uint256 tax = _tax(what);
-        // Send the tax to the reward fund, we will treat out contract address as reward pool
-        // sushi.transfer(address(this), tax);
+        // The tax to the reward fund is sent back to the reward pool
 
-        // calculate the final amount and sent to the recipient
-        uint256 finalAmount = unlock.sub(tax);
-        // unlock the Sushi in the contract
+        // The final amount that will be recived calculated
+        uint256 finalAmount = stakeUnlocked.sub(tax);
+        
         sushi.transfer(msg.sender, finalAmount);
-        // update the mapping
-        userStake[msg.sender].amount -= unlock;
-        _burn(msg.sender, unlock);
+        // userStake mapping updated
+        userStake[msg.sender].amount -= stakeUnlocked;
+        _burn(msg.sender, stakeUnlocked);
     }
 
-    // It calculates the sushi that can be unlocked based on the day they requested
-    function _unlock(uint256 _what) internal view returns (uint256) {
+    // The amount of sushi that can be unstaked based on the number of days after its requested
+    function _timelock(uint256 _what) internal view returns (uint256) {
         if (userStake[msg.sender].amount == 0) {
             return 0;
         }
-        // If the user has staked, calculate the amount they can unstake
+        // Checking for staked for the user
         else {
             uint256 time = block.timestamp - userStake[msg.sender].timestamp;
             if (time < 2 * 24 * 60 * 60) {
@@ -96,13 +95,13 @@ contract SushiBar is ERC20("SushiBar", "xSUSHI") {
         }
     }
 
-    // It calculates the tax on the sushi that is being unstaked
+    // tax for the sushi that has been requested for unsaking is calculated based on the day.
     function _tax(uint256 _unlocked) internal view returns (uint256) {
-        // If the user has not staked, return 0
+        // checking if the user has staked if not No tax so returns 0.
         if (userStake[msg.sender].amount == 0) {
             return 0;
         }
-        // If the user has staked, calculate the amount they can unstake
+        // for the staked users the tax amount is calculated.
         else {
             uint256 time = block.timestamp - userStake[msg.sender].timestamp;
             if (time < 2 * 24 * 60 * 60) {
